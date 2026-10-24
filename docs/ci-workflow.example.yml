@@ -1,0 +1,63 @@
+name: Validate portfolio edition
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: synthetic-ci-root-only
+          MARIADB_DATABASE: autopay_ci
+          MARIADB_USER: autopay
+          MARIADB_PASSWORD: synthetic-ci-database-only
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_PORT: 3306
+      MYSQL_USER: autopay
+      MYSQL_PASSWORD: synthetic-ci-database-only
+      MYSQL_DATABASE: autopay_ci
+      RUN_DB_TESTS: '1'
+      MP_ACCESS_TOKEN: synthetic-provider-fixture-never-used-for-network
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: external-api/package-lock.json
+      - name: Generate isolated test secrets
+        run: |
+          for name in SERVICE_TOKEN SERVICE_HMAC_SECRET ADMIN_JWT_SECRET MP_WEBHOOK_SECRET; do
+            echo "$name=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          done
+      - run: node scripts/check-secrets.mjs
+      - run: npm ci --ignore-scripts
+        working-directory: external-api
+      - run: npm run build
+        working-directory: external-api
+      - run: npm test
+        working-directory: external-api
+      - run: npm audit --omit=dev --audit-level=high
+        working-directory: external-api
+  panel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: admin-panel/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: admin-panel
+      - run: npm run build
+        working-directory: admin-panel
+      - run: npm audit --omit=dev --audit-level=high
+        working-directory: admin-panel

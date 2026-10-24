@@ -1,0 +1,15 @@
+**/node_modules/
+**/.next/
+**/dist/
+**/.env
+**/.env.*
+!**/.env.example
+**/*.tsbuildinfo
+**/*.log
+**/coverage/
+**/*.pem
+**/*.key
+**/*.pfx
+**/*.sqlite
+**/*.db
+.DS_Store
